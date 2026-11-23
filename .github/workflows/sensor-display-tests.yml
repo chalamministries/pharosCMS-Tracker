@@ -10,7 +10,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test tests/map-battery.test.cjs
+      - run: node --test tests/map-battery.test.cjs tests/sensor-cache.test.cjs
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
