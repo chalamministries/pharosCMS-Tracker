@@ -132,6 +132,7 @@ class DeviceConfig(BaseModel):
     alert_rows: List[AlertRow] = Field(default_factory=list)
     custom_rules: List[Union[CustomRule, str]] = Field(default_factory=list)
     sensors:     Dict[str, str] = Field(default_factory=dict)
+    sensor_labels: Dict[str, str] = Field(default_factory=dict)
     maintenance: Dict[str, int] = Field(default_factory=dict)
     integration: Optional[Dict[str, Any]] = Field(None)
     user_commands: List[Dict[str, Any]] = Field(default_factory=list)
