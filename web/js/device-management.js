@@ -557,11 +557,13 @@ function openAddDeviceModal() {
     const alertsTabBtnAdd = document.querySelector('.modal-tab[data-tab="alerts"]');
     if (alertsTabBtnAdd) alertsTabBtnAdd.style.display = hasPermission('manage_alerts') ? '' : 'none';
     document.getElementById('deviceForm').reset();
+    DeviceSensorDisplay.populate(document.getElementById('deviceBatteryField'), null);
+    DeviceSensorDisplay.populateLabels(document.getElementById('deviceSensorLabels'), null);
     document.getElementById('deviceProtocol').value          = '';
     document.getElementById('currentOdometer').value         = '0.0';
     document.getElementById('offlineTimeoutHours').value     = '24';
 
-    ['deviceName', 'licensePlate', 'vehicleType', 'currentOdometer', 'offlineTimeoutHours', 'tripMergeGapMinutes', 'deviceHasCamera', 'deviceDisabled'].forEach(id => {
+    ['deviceName', 'licensePlate', 'vehicleType', 'currentOdometer', 'offlineTimeoutHours', 'tripMergeGapMinutes', 'deviceHasCamera', 'deviceDisabled', 'deviceBatteryField', 'deviceSensorLabels'].forEach(id => {
         const el = document.getElementById(id);
         if (el) {
             el.disabled = false;
@@ -636,6 +638,9 @@ function openDeviceModal(deviceId, startTab = 'general') {
     document.getElementById('deviceProtocol').value      = d.protocol || DEFAULT_PROTOCOL;
     document.getElementById('licensePlate').value        = d.license_plate || '';
     renderCustomAttributes(d.custom_attributes || {});
+    DeviceSensorDisplay.populate(document.getElementById('deviceBatteryField'), d);
+    DeviceSensorDisplay.populateLabels(document.getElementById('deviceSensorLabels'), d);
+    document.getElementById('deviceSensorLabels').disabled = !canEditDevice;
     if (isAdmin) populateDeviceCompanySelect(d.company_id);
     populateDeviceSimCardSelect(d.sim_card_id, d.id, d.company_id);
     renderDeviceUsersMultiSelect();
@@ -664,7 +669,7 @@ function openDeviceModal(deviceId, startTab = 'general') {
         protocolEl.disabled = true;
     }
 
-    ['deviceName', 'licensePlate', 'vehicleType', 'currentOdometer', 'offlineTimeoutHours', 'tripMergeGapMinutes', 'deviceHasCamera', 'deviceDisabled'].forEach(id => {
+    ['deviceName', 'licensePlate', 'vehicleType', 'currentOdometer', 'offlineTimeoutHours', 'tripMergeGapMinutes', 'deviceHasCamera', 'deviceDisabled', 'deviceBatteryField', 'deviceSensorLabels'].forEach(id => {
         const el = document.getElementById(id);
         if (el) el.disabled = !canEditDevice;
     });
@@ -704,6 +709,8 @@ function _snapshotDeviceModal() {
         company:       document.getElementById('deviceCompany')?.value,
         assignedUsers: Array.from(deviceAssignedUserIds).sort(),
         customAttrs:   readCustomAttributes(),
+        batteryField:  document.getElementById('deviceBatteryField')?.value,
+        sensorLabels:  DeviceSensorDisplay.readLabels(document.getElementById('deviceSensorLabels')),
         alertRows:     alertRows,
         disabled:      document.getElementById('deviceDisabled')?.checked,
     });
@@ -799,7 +806,8 @@ async function handleSubmit(event) {
             : {};
 
         const newConfig = buildConfigFromAlertRows(existingConfig);
-        newConfig.sensors                = existingConfig.sensors     || {};
+        newConfig.sensors = DeviceSensorDisplay.settings(existingConfig, document.getElementById('deviceBatteryField').value).sensors;
+        newConfig.sensor_labels = DeviceSensorDisplay.readLabels(document.getElementById('deviceSensorLabels'));
         newConfig.maintenance            = existingConfig.maintenance || {};
         newConfig.speed_duration_seconds = existingConfig.speed_duration_seconds || 30;
         newConfig.offline_timeout_hours  = parseInt(document.getElementById('offlineTimeoutHours').value) || 24;

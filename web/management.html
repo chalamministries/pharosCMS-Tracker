@@ -935,6 +935,16 @@
                                 </div>
                             </div>
                             <div class="form-group">
+                                <label class="form-label" for="deviceBatteryField">Battery level field (%)</label>
+                                <select class="form-input" id="deviceBatteryField"></select>
+                                <div class="form-help">Choose the sensor that reports 0–100%. The map will show it as Battery with a % sign. This applies only to this device and does not set an alert.</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">IO and sensor labels</label>
+                                <div class="form-help">Name fields for this device, for example h02_io8 → Battery. Blank uses the automatic label. Labels do not change raw data, units or status-bit decoding.</div>
+                                <fieldset id="deviceSensorLabels" style="border:0;padding:0;margin:0;max-height:260px;overflow-y:auto;"></fieldset>
+                            </div>
+                            <div class="form-group">
                                 <label class="form-label">Custom Attributes</label>
                                 <div id="customAttributesList" style="display:flex;flex-direction:column;gap:0.4rem;"></div>
                                 <button type="button" class="btn btn-secondary" style="margin-top:0.5rem;font-size:0.8rem;" onclick="addCustomAttribute()">
@@ -2039,7 +2049,8 @@
 <script src="js/impersonation.js"></script>
 <script src="js/ui-utils.js"></script>
 <script src="js/vehicle-icons.js"></script>
-<script src="js/device-management.js"></script>
+<script src="js/device-sensor-display.js?v=1"></script>
+<script src="js/device-management.js?v=battery-source-1"></script>
 <script src="js/device-wizard.js"></script>
 <script src="js/device-management-integrations.js"></script>
 <script src="js/device-commands.js"></script>

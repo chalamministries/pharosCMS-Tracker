@@ -295,8 +295,19 @@ class H02Decoder(BaseProtocolDecoder):
 
         # Flags / status (field 11)
         if len(parts) > 11 and parts[11].strip():
-            sensors  = _parse_flags(parts[11].strip())
-            ignition = sensors.pop('ignition', None)
+            status = parts[11].strip()
+            if msg_type == 'V8':
+                sensors['flags_raw'] = status
+                if re.fullmatch(r'[0-9A-Fa-f]{8}', status):
+                    flags = int(status, 16)
+                    # SinoTrack status: bit 10 is ignition (1=on), while
+                    # alarm bits 0,1,2,18,19 are active-low. Bit 1 is SOS,
+                    # not charging. No charging sensor is inferred here.
+                    ignition = bool(flags & (1 << 10))
+                    sensors['alarm_active'] = any(not flags & (1 << bit) for bit in (0,1,2,18,19))
+            else:
+                sensors = _parse_flags(status)
+                ignition = sensors.pop('ignition', None)
 
         # IO status byte (field 12)
         if msg_type != 'V8' and len(parts) > 12 and parts[12].strip():
@@ -327,11 +338,30 @@ class H02Decoder(BaseProtocolDecoder):
             except ValueError:
                 pass
 
+        satellites = None
         if msg_type == 'V8':
-            # Preserve every extension exactly until its firmware-specific
-            # meaning is documented. In particular, do not invent a battery
-            # voltage/percentage from a cellular-network or signal field.
+            # Keep original IO values alongside the confirmed SinoTrack V8
+            # field mapping. Optional invalid values never become fake zero.
             sensors.update({f'h02_io{i}': value.strip() for i, value in enumerate(parts[12:], 1)})
+            def number(index, maximum):
+                text = parts[index].strip() if len(parts) > index else ''
+                if not re.fullmatch(r'\d{1,10}', text):
+                    return None
+                value = int(text)
+                return value if value <= maximum else None
+            for index, name, maximum in ((12,'mcc',999),(13,'mnc',999),
+                                          (14,'lac',4294967295),(15,'cell_id',4294967295)):
+                value = number(index, maximum)
+                if value is not None:
+                    sensors[name] = parts[index].strip() if name in ('mcc','mnc') else value
+            satellites = number(16, 255)
+            signal = number(17, 31)
+            voltage = number(18, 255)
+            battery = number(19, 100)
+            if signal is not None: sensors['gsm_signal'] = signal
+            if voltage is not None: sensors['battery_voltage'] = voltage / 10.0
+            if battery is not None: sensors['battery_level'] = battery
+            sensors['gps_signal_ok'] = valid_chr == 'A'
 
         valid = (valid_chr == 'A')
         if not valid:
@@ -347,6 +377,7 @@ class H02Decoder(BaseProtocolDecoder):
             altitude=altitude,
             speed=speed_kmh,
             course=course,
+            satellites=satellites,
             valid=valid,
             ignition=ignition,
             sensors=sensors,

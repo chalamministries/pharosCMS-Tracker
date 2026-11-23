@@ -374,25 +374,8 @@ function updateDeviceMarker(deviceId, state) {
         }
     }
 
-    // Build sensors rows
-    const canViewHist = hasPermission('view_history');
-    const skipKeys = new Set(['raw', 'event_code']);
-    const sensorRows = Object.entries(sensors)
-        .filter(([k, v]) => !skipKeys.has(k) && v !== null && v !== undefined)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([k, v]) => {
-            const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
-            let display = Array.isArray(v) || (v !== null && typeof v === 'object')
-                ? JSON.stringify(v)
-                : String(v);
-            const clickAttr = canViewHist ? `onclick="openSensorHistoryModal(${deviceId}, '${_esc(k)}', '${_esc(label)}')" role="button" title="Click to view ${label} history"` : '';
-            return `<div class="vp-sensor-row ${canViewHist ? 'vp-sensor-row-clickable' : ''}" ${clickAttr} style="display:flex;justify-content:space-between;align-items:baseline;
-                                gap:0.5rem;padding:0.25rem 0.35rem;border-bottom:1px solid var(--border-color);flex-wrap:wrap;border-radius:4px;">
-                        <span style="color:var(--text-muted);font-size:0.75rem;flex-shrink:0;">${label}</span>
-                        <span style="font-family:JetBrains Mono,monospace;font-size:0.72rem;
-                                     color:var(--text-primary);word-break:break-all;text-align:right;">${display}</span>
-                    </div>`;
-        }).join('');
+    // Display aliases are configured per device; raw telemetry/history keep their source key.
+    const sensorRows = DeviceSensorDisplay.render(device || {id:deviceId}, sensors, hasPermission('view_history'));
 
     // ── Check if sensor panel should be expanded & save scroll positions ─────────
     let sensorsExpanded = _popupSensorsExpanded.has(deviceId);

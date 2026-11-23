@@ -30,7 +30,7 @@ class H02V8Tests(unittest.IsolatedAsyncioTestCase):
     async def decode(self, packet):
         return await H02Decoder().decode(packet, {'ip': '127.0.0.1'})
 
-    async def test_v8_position_and_opaque_extensions(self):
+    async def test_v8_position_and_decoded_extensions(self):
         packet = frame()
         p, consumed = await self.decode(packet)
         self.assertIsInstance(p, NormalizedPosition)
@@ -46,8 +46,18 @@ class H02V8Tests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(p.sensors['h02_io1'],'001')
         self.assertEqual(p.sensors['h02_io2'],'01')
         self.assertEqual(p.sensors['h02_io8'],'97')
-        for field in ['battery_voltage','battery_level','gsm_signal','io_status']:
-            self.assertNotIn(field,p.sensors)
+        self.assertEqual(p.sensors['mcc'],'001')
+        self.assertEqual(p.sensors['mnc'],'01')
+        self.assertEqual(p.sensors['lac'],101)
+        self.assertEqual(p.sensors['cell_id'],202)
+        self.assertEqual(p.satellites,11)
+        self.assertEqual(p.sensors['gsm_signal'],17)
+        self.assertEqual(p.sensors['battery_voltage'],4.0)
+        self.assertEqual(p.sensors['battery_level'],97)
+        self.assertNotIn('io_status',p.sensors)
+        self.assertNotIn('charging',p.sensors)
+        self.assertFalse(p.ignition)
+        self.assertFalse(p.sensors['alarm_active'])
         self.assertEqual(p.altitude,0.0)
 
     async def test_unpadded_longitude_under_one_degree(self):
@@ -109,6 +119,50 @@ class H02V8Tests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(b'R12',p['response'])
         p, _=await self.decode(b'*HQ,1234567890,LINK,202252,11,17,97,0,0,231126#')
         self.assertEqual(p['sensors']['battery_pct'],97)
+
+    async def test_confirmed_v8_layout_without_private_identifiers(self):
+        p,_=await self.decode(frame(tail=',001,00,101,202,6,18,41,100'))
+        self.assertEqual(p.satellites,6)
+        self.assertEqual(p.sensors['gsm_signal'],18)
+        self.assertEqual(p.sensors['battery_voltage'],4.1)
+        self.assertEqual(p.sensors['battery_level'],100)
+        self.assertEqual(p.sensors['mnc'],'00')
+        self.assertFalse(p.ignition)
+        self.assertFalse(p.sensors['alarm_active'])
+        self.assertTrue(p.sensors['gps_signal_ok'])
+        self.assertNotIn('charging',p.sensors)
+
+    async def test_ignition_and_alarm_bits_are_independent(self):
+        p,_=await self.decode(frame().replace(b'FFFFFBFF',b'FFFFFFFF'))
+        self.assertTrue(p.ignition)
+        self.assertFalse(p.sensors['alarm_active'])
+        for bit in (0,1,2,18,19):
+            flags=0xFFFFFBFF & ~(1<<bit)
+            p,_=await self.decode(frame().replace(b'FFFFFBFF',f'{flags:08X}'.encode()))
+            self.assertFalse(p.ignition)
+            self.assertTrue(p.sensors['alarm_active'])
+            self.assertNotIn('charging',p.sensors)
+
+    async def test_unknown_status_does_not_invent_ignition_or_alarms(self):
+        p,_=await self.decode(frame().replace(b'FFFFFBFF',b'INVALID'))
+        self.assertIsNone(p.ignition)
+        self.assertNotIn('alarm_active',p.sensors)
+        self.assertNotIn('charging',p.sensors)
+
+    async def test_invalid_optional_fields_preserve_position_and_raw_values(self):
+        p,_=await self.decode(frame(tail=',001,00,101,202,999,99,garbled,101'))
+        self.assertIsInstance(p,NormalizedPosition)
+        self.assertIsNone(p.satellites)
+        for name in ('gsm_signal','battery_voltage','battery_level'):
+            self.assertNotIn(name,p.sensors)
+        self.assertEqual(p.sensors['h02_io8'],'101')
+
+    async def test_zero_percent_and_zero_signal_remain_real_values(self):
+        p,_=await self.decode(frame(tail=',001,00,101,202,0,0,30,0'))
+        self.assertEqual(p.satellites,0)
+        self.assertEqual(p.sensors['gsm_signal'],0)
+        self.assertEqual(p.sensors['battery_voltage'],3.0)
+        self.assertEqual(p.sensors['battery_level'],0)
 
 if __name__=='__main__':
     unittest.main()

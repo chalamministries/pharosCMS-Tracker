@@ -325,6 +325,7 @@ function getDeviceCardContent(device, icon) {
                 <span class="info-value" id="imei-${device.id}" style="font-family:var(--font-mono);font-size:0.72rem;">${device.imei || '—'}</span>
             </div>
             ${maintenanceHtml}
+            ${DeviceSensorDisplay.batteryCard(device)}
         </div>
         ${vs.cls !== 'pending' ? `
         <div class="device-actions">
