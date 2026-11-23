@@ -10,6 +10,7 @@ Protocol reference:
   *HQ,<IMEI>,LINK,<time>,<sat>,<rssi>,<bat%>,<steps>,<rolls>,<date>#  (link/status)
 """
 import logging
+import math
 import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -29,9 +30,13 @@ def _parse_coord(value: str, hemi: str) -> Optional[float]:
     if not value:
         return None
     try:
-        dot  = value.index('.')
-        deg  = float(value[:dot - 2])
-        mins = float(value[dot - 2:])
+        if not re.fullmatch(r'\d+\.\d+', value) or hemi.upper() not in ('N', 'S', 'E', 'W'):
+            return None
+        # V8 firmware can omit zero degree padding (e.g. 9.9068,W).
+        deg, mins = divmod(float(value), 100)
+        limit = 90 if hemi.upper() in ('N', 'S') else 180
+        if mins >= 60 or deg + mins / 60 > limit:
+            return None
         result = deg + mins / 60.0
         if hemi.upper() in ('S', 'W'):
             result = -result
@@ -85,6 +90,7 @@ class H02Decoder(BaseProtocolDecoder):
     Supported message types:
       V1   — standard GPS position report
       V4   — alternative position report (same layout as V1)
+      V8   — SinoTrack position report with firmware-specific extension fields
       NBR  — cell-tower / LBS position (no GPS)
       HTBT — heartbeat / keepalive
       LINK — device status / link report
@@ -199,8 +205,8 @@ class H02Decoder(BaseProtocolDecoder):
             response = f"*HQ,{imei},R12#\r\n".encode('ascii')
             return {'imei': imei, 'response': response, 'sensors': sensors}, consumed
 
-        # ── Standard GPS position: V1 / V4 ────────────────────────
-        if msg_type in ('V1', 'V4'):
+        # ── Standard GPS position: V1 / V4 / V8 ───────────────────
+        if msg_type in ('V1', 'V4', 'V8'):
             return self._parse_v1(parts, imei, consumed, msg_type)
 
         # ── Cell-tower (LBS) position: NBR ────────────────────────
@@ -226,7 +232,8 @@ class H02Decoder(BaseProtocolDecoder):
         msg_type: str = 'V1',
     ) -> Tuple[Optional[NormalizedPosition], int]:
         """
-        V1 / V4 GPS position report.
+        V1 / V4 / V8 GPS position report. V8 shares fields 0–11;
+        its extension tail must not be interpreted as the V1 optional sensors.
 
         Field layout (0-indexed after splitting on comma):
           0  IMEI
@@ -258,7 +265,10 @@ class H02Decoder(BaseProtocolDecoder):
         lon_hemi  = parts[7].strip()
         date_str  = parts[10].strip()
 
-        device_time = _parse_time(time_str, date_str) or datetime.now(timezone.utc)
+        device_time = _parse_time(time_str, date_str)
+        if device_time is None and msg_type == 'V8':
+            return None, consumed
+        device_time = device_time or datetime.now(timezone.utc)
         latitude    = _parse_coord(lat_str,  lat_hemi)
         longitude   = _parse_coord(lon_str,  lon_hemi)
 
@@ -276,6 +286,10 @@ class H02Decoder(BaseProtocolDecoder):
         except (ValueError, IndexError):
             course = 0.0
 
+        if msg_type == 'V8' and (not math.isfinite(speed_kmh) or speed_kmh < 0
+                                or not math.isfinite(course) or not 0 <= course <= 360):
+            return None, consumed
+
         sensors:  Dict[str, Any] = {}
         ignition: Optional[bool] = None
 
@@ -285,21 +299,21 @@ class H02Decoder(BaseProtocolDecoder):
             ignition = sensors.pop('ignition', None)
 
         # IO status byte (field 12)
-        if len(parts) > 12 and parts[12].strip():
+        if msg_type != 'V8' and len(parts) > 12 and parts[12].strip():
             try:
                 sensors['io_status'] = int(parts[12].strip(), 16)
             except ValueError:
                 pass
 
         # Battery voltage (field 13)
-        if len(parts) > 13 and parts[13].strip():
+        if msg_type != 'V8' and len(parts) > 13 and parts[13].strip():
             try:
                 sensors['battery_voltage'] = float(parts[13].strip())
             except ValueError:
                 pass
 
         # GSM signal (field 14)
-        if len(parts) > 14 and parts[14].strip():
+        if msg_type != 'V8' and len(parts) > 14 and parts[14].strip():
             try:
                 sensors['gsm_signal'] = int(parts[14].strip())
             except ValueError:
@@ -307,11 +321,17 @@ class H02Decoder(BaseProtocolDecoder):
 
         # Altitude in metres (field 15 — present in some firmware variants)
         altitude = 0.0
-        if len(parts) > 15 and parts[15].strip():
+        if msg_type != 'V8' and len(parts) > 15 and parts[15].strip():
             try:
                 altitude = float(parts[15].strip())
             except ValueError:
                 pass
+
+        if msg_type == 'V8':
+            # Preserve every extension exactly until its firmware-specific
+            # meaning is documented. In particular, do not invent a battery
+            # voltage/percentage from a cellular-network or signal field.
+            sensors.update({f'h02_io{i}': value.strip() for i, value in enumerate(parts[12:], 1)})
 
         valid = (valid_chr == 'A')
         if not valid:
