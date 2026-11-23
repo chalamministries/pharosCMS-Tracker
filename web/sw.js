@@ -4,7 +4,7 @@
  * Place this file at: /web/sw.js  (root of your web directory)
  */
 
-const CACHE_NAME = 'gps-dashboard-v150';
+const CACHE_NAME = 'gps-dashboard-v151-sensor-display';
 const TILE_CACHE_NAME = 'routario-map-tiles-v1';
 const MAX_CACHED_TILES = 1500;
 let tileInsertCount = 0;
@@ -29,6 +29,7 @@ const STATIC_ASSETS = [
   '/js/dashboard-auth.js',
   '/js/dashboard-alerts.js',
   '/js/dashboard-devices.js',
+  '/js/device-sensor-display.js',
   '/js/dashboard-geofences.js',
   '/js/dashboard-bottom-bar.js',
   '/js/dashboard-history.js',
@@ -107,7 +108,7 @@ self.addEventListener('install', (event) => {
       console.log('[SW] Pre-caching static assets');
       // Cache what we can; ignore failures for external resources
       return Promise.allSettled(
-        STATIC_ASSETS.map(url => cache.add(url).catch(() => {}))
+        STATIC_ASSETS.map(url => cache.add(new Request(url, { cache: 'reload' })).catch(() => {}))
       );
     }).then(() => self.skipWaiting())
   );
