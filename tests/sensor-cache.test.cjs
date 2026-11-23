@@ -9,7 +9,7 @@ function worker(){
     const ctx={console:{log(){},warn(){}},
         Request:class{constructor(url,options){this.url=url;this.cache=options.cache;}},
         caches:{open:async name=>{cacheName=name;return{add:async req=>requests.push(req)}},
-            keys:async()=>['gps-dashboard-v150','gps-dashboard-v151-sensor-display','routario-map-tiles-v1'],
+            keys:async()=>['gps-dashboard-v150','gps-dashboard-v152-sensor-display','routario-map-tiles-v1'],
             delete:async key=>deleted.push(key)},
         self:{addEventListener:(name,callback)=>events[name]=callback,skipWaiting:async()=>skipped=true,
             clients:{claim:async()=>claimed=true,matchAll:async()=>[{postMessage:msg=>messages.push(msg)}]}}};

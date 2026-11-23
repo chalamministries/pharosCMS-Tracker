@@ -375,7 +375,8 @@ function updateDeviceMarker(deviceId, state) {
     }
 
     // Display aliases are configured per device; raw telemetry/history keep their source key.
-    const sensorRows = DeviceSensorDisplay.render(device || {id:deviceId}, sensors, hasPermission('view_history'));
+    const canViewHist = hasPermission('view_history');
+    const sensorRows = DeviceSensorDisplay.render(device || {id:deviceId}, sensors, canViewHist);
 
     // ── Check if sensor panel should be expanded & save scroll positions ─────────
     let sensorsExpanded = _popupSensorsExpanded.has(deviceId);
