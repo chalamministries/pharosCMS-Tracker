@@ -4,7 +4,7 @@
  * Place this file at: /web/sw.js  (root of your web directory)
  */
 
-const CACHE_NAME = 'gps-dashboard-v151-sensor-display';
+const CACHE_NAME = 'gps-dashboard-v152-sensor-display';
 const TILE_CACHE_NAME = 'routario-map-tiles-v1';
 const MAX_CACHED_TILES = 1500;
 let tileInsertCount = 0;

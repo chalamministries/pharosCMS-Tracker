@@ -106,3 +106,22 @@ test('actual sidebar renderer updates the same battery row after new telemetry',
     const updated=context.getDeviceCardContent(d,'🚗');
     assert.match(updated,/42%/);assert.ok(!updated.includes('100%'));
 });
+
+test('actual map marker renders battery and permission-controlled history without reference errors',()=>{
+    const source=fs.readFileSync(path.join(__dirname,'../web/js/dashboard-map.js'),'utf8');
+    for(const canHistory of [false,true]){
+        let popup;
+        const marker={bindPopup(html){popup=html;return this},on(){return this}};
+        const ctx={window:{},DeviceSensorDisplay:display,devices:[{id:4,name:'Demo',vehicle_type:'car',config:{sensors:{battery_level:'h02_io8'}}}],
+            VEHICLE_ICONS:{car:{emoji:'🚗'}},markers:{},markerState:{},accuracyCircles:{},
+            hasPermission:()=>canHistory,fmtSpeed:String,fmtAlt:String,fmtOdometer:String,
+            _makeMarkerIcon:()=>null,L:{marker:()=>marker},clusterGroup:{addLayer(){}},
+            _updateLiveBreadcrumbTrail(){},refreshClusterIcons(){}};
+        vm.createContext(ctx);
+        vm.runInContext(source.slice(source.indexOf('const _popupSensorsExpanded'),source.indexOf('/**',source.indexOf('function updateDeviceMarker('))),ctx);
+        ctx.updateDeviceMarker(4,{last_latitude:10,last_longitude:20,last_speed:0,ignition_on:false,sensors:{h02_io8:100}});
+        assert.match(popup,/Battery/);assert.match(popup,/100%/);assert.match(popup,/>OFF</);
+        assert.equal(popup.includes('openSensorHistoryModal'),canHistory);
+        assert.ok(ctx.markers[4]);
+    }
+});
